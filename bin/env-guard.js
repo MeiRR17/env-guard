@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile, writeFile } from 'node:fs/promises';
-import { inspectEnv } from '../src/index.js';
+import { inspectEnv, EnvGuardError } from '../src/index.js';
 import { generateEnvExample } from '../src/example.js';
 import { scaffoldEnvSchema } from '../src/scaffold.js';
 import { aggregateEnvReport } from '../src/summary.js';
@@ -114,8 +114,16 @@ async function main(args) {
 }
 
 main(process.argv.slice(2)).catch(error => {
-  // File system exceptions may expose paths but never loaded secret values.
-  process.stderr.write('env-guard: ' + (error.code === 'ENOENT' ? 'File not found: ' + error.path :
-    error.message) + '\n');
+  if (process.argv.slice(2).includes('--summary-only')) {
+    // Failures can contain schema variable names or filesystem paths.
+    // Do not undermine a counts-only report by printing those details.
+    const code = error instanceof EnvGuardError ? error.code : 'FILE_OR_USAGE_ERROR';
+    process.stderr.write('env-guard: aggregate report unavailable (' + code +
+      '). Re-run locally without --summary-only for details.\n');
+  } else {
+    // File system exceptions may expose paths but never loaded secret values.
+    process.stderr.write('env-guard: ' + (error.code === 'ENOENT' ? 'File not found: ' + error.path :
+      error.message) + '\n');
+  }
   process.exitCode = 2;
 });
