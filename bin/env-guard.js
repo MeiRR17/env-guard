@@ -2,6 +2,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { inspectEnv } from '../src/index.js';
 import { generateEnvExample } from '../src/example.js';
+import { scaffoldEnvSchema } from '../src/scaffold.js';
 
 const HELP = [
   'env-guard — validate dotenv files without printing secret values',
@@ -15,6 +16,7 @@ const HELP = [
   '  --json           Print a structured, redacted JSON report',
   '  --quiet          Print only failures in text mode',
   '  --init-example FILE  Write a blank .env example from the schema only',
+  '  --init-schema FILE   Create a schema skeleton from .env variable names',
   '  --required-only      Exclude optional variables from example output',
   '  -h, --help       Print this help',
   '',
@@ -22,7 +24,7 @@ const HELP = [
 ].join('\n');
 
 async function main(args) {
-  const opts = { env: '.env', schema: 'env.schema.json', strict: false, json: false, quiet: false, example: null, requiredOnly: false };
+  const opts = { env: '.env', schema: 'env.schema.json', strict: false, json: false, quiet: false, example: null, scaffold: null, requiredOnly: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-h' || arg === '--help') { process.stdout.write(HELP + '\n'); return; }
@@ -30,6 +32,12 @@ async function main(args) {
     if (arg === '--json') { opts.json = true; continue; }
     if (arg === '--quiet') { opts.quiet = true; continue; }
     if (arg === '--required-only') { opts.requiredOnly = true; continue; }
+    if (arg === '--init-schema') {
+      const filename = args[++i];
+      if (!filename || filename.startsWith('--')) throw new Error('Expected a filename after --init-schema.');
+      opts.scaffold = filename;
+      continue;
+    }
     if (arg === '--init-example') {
       const filename = args[++i];
       if (!filename || filename.startsWith('--')) throw new Error('Expected a filename after --init-example.');
@@ -43,6 +51,21 @@ async function main(args) {
       continue;
     }
     throw new Error('Unknown argument: ' + arg);
+  }
+  if (opts.example !== null && opts.scaffold !== null) {
+    throw new Error('Choose only one of --init-example and --init-schema.');
+  }
+  if (opts.scaffold !== null) {
+    if (opts.json || opts.quiet || opts.strict || opts.requiredOnly) {
+      throw new Error('--init-schema cannot be combined with --json, --quiet, --strict or --required-only.');
+    }
+    // Explicit scaffold mode reads dotenv values only into private process
+    // memory; output contains key names and generic string metadata only.
+    const envText = await readFile(opts.env, 'utf8');
+    const schemaText = scaffoldEnvSchema(envText);
+    await writeFile(opts.scaffold, schemaText, { encoding: 'utf8', flag: 'wx' });
+    process.stderr.write('Created schema skeleton (variable names only): ' + opts.scaffold + '\n');
+    return;
   }
   if (opts.example !== null) {
     if (opts.json || opts.quiet || opts.strict) {
