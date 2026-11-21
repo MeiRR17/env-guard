@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { inspectEnv } from '../src/index.js';
 import { generateEnvExample } from '../src/example.js';
 import { scaffoldEnvSchema } from '../src/scaffold.js';
+import { aggregateEnvReport } from '../src/summary.js';
 
 const HELP = [
   'env-guard — validate dotenv files without printing secret values',
@@ -14,6 +15,7 @@ const HELP = [
   '  --schema FILE    JSON schema (default env.schema.json)',
   '  --strict         Treat variables absent from the schema as errors',
   '  --json           Print a structured, redacted JSON report',
+  '  --summary-only   Print counts and finding codes; omit variable names',
   '  --quiet          Print only failures in text mode',
   '  --init-example FILE  Write a blank .env example from the schema only',
   '  --init-schema FILE   Create a schema skeleton from .env variable names',
@@ -24,12 +26,13 @@ const HELP = [
 ].join('\n');
 
 async function main(args) {
-  const opts = { env: '.env', schema: 'env.schema.json', strict: false, json: false, quiet: false, example: null, scaffold: null, requiredOnly: false };
+  const opts = { env: '.env', schema: 'env.schema.json', strict: false, json: false, quiet: false, summaryOnly: false, example: null, scaffold: null, requiredOnly: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-h' || arg === '--help') { process.stdout.write(HELP + '\n'); return; }
     if (arg === '--strict') { opts.strict = true; continue; }
     if (arg === '--json') { opts.json = true; continue; }
+    if (arg === '--summary-only') { opts.summaryOnly = true; continue; }
     if (arg === '--quiet') { opts.quiet = true; continue; }
     if (arg === '--required-only') { opts.requiredOnly = true; continue; }
     if (arg === '--init-schema') {
@@ -52,11 +55,12 @@ async function main(args) {
     }
     throw new Error('Unknown argument: ' + arg);
   }
+  if (opts.summaryOnly && opts.quiet) throw new Error('--summary-only cannot be combined with --quiet.');
   if (opts.example !== null && opts.scaffold !== null) {
     throw new Error('Choose only one of --init-example and --init-schema.');
   }
   if (opts.scaffold !== null) {
-    if (opts.json || opts.quiet || opts.strict || opts.requiredOnly) {
+    if (opts.json || opts.quiet || opts.strict || opts.requiredOnly || opts.summaryOnly) {
       throw new Error('--init-schema cannot be combined with --json, --quiet, --strict or --required-only.');
     }
     // Explicit scaffold mode reads dotenv values only into private process
@@ -68,7 +72,7 @@ async function main(args) {
     return;
   }
   if (opts.example !== null) {
-    if (opts.json || opts.quiet || opts.strict) {
+    if (opts.json || opts.quiet || opts.strict || opts.summaryOnly) {
       throw new Error('--init-example cannot be combined with --json, --quiet or --strict.');
     }
     // Template mode never opens .env or accesses process.env.
@@ -83,7 +87,18 @@ async function main(args) {
     readFile(opts.env, 'utf8'), readFile(opts.schema, 'utf8'),
   ]);
   const report = inspectEnv(environment, schema, { strictUnknown: opts.strict });
-  if (opts.json) {
+  if (opts.summaryOnly) {
+    const summary = aggregateEnvReport(report);
+    if (opts.json) process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
+    else {
+      process.stdout.write('Result: ' + (summary.valid ? 'VALID' : 'INVALID') +
+        ' (' + summary.checked + ' checks, ' + summary.errors + ' errors, ' +
+        summary.warnings + ' warnings, ' + summary.optional + ' optional)\n');
+      for (const { code, count } of summary.codes) {
+        process.stdout.write(code + ': ' + count + '\n');
+      }
+    }
+  } else if (opts.json) {
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');
   } else {
     for (const entry of report.checks) {
