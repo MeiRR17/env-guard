@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.js",
     "./example": "./src/example.js",
-    "./scaffold": "./src/scaffold.js"
+    "./scaffold": "./src/scaffold.js",
+    "./summary": "./src/summary.js"
   },
   "bin": {
     "env-guard": "./bin/env-guard.js"
