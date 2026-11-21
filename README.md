@@ -17,6 +17,25 @@ For a project, create a private `.env` and a tracked `env.schema.json` in its ro
 
 Exit codes: **0** configuration valid, **1** variables missing/invalid, **2** usage, parsing, schema or filesystem error. Use the exit code in CI or a startup script.
 
+## Generate a safe .env.example template
+
+Create a **blank, shareable** environment template from your schema without opening an existing `.env` file or copying secret values:
+
+    node bin/env-guard.js --schema examples/env.schema.json --init-example .env.example
+    node bin/env-guard.js --schema examples/env.schema.json --required-only --init-example required.env.example
+
+The output contains variable names, types, required/optional labels and non-sensitive length/number constraints. It **does not include actual values, enum choices, pattern sources, schema defaults or process environment variables**. Each generated assignment is intentionally empty, so copy the example to your private `.env`, fill in real values and validate. This is a documentation template, not a functioning configuration file.
+
+The CLI creates a **new** file only (`wx`): it refuses to overwrite an existing template. Template mode reads the schema only; it does not inspect `.env` or `process.env`. The option `--required-only` excludes optional schema variables.
+
+Programmatic use:
+
+    import { generateEnvExample } from './src/example.js';
+    const example = generateEnvExample(schemaJsonText, { requiredOnly: false });
+
+Package users can import from `@meirr17/env-guard/example`. Keep variable names non-sensitive if publishing even blank templates. Nothing is uploaded.
+
+
 ## Schema format
 
 The schema must contain `version: 1` and a `variables` mapping. Example:
@@ -63,7 +82,8 @@ This branch contains new functionality and has **not been tested**; validation w
 ## Project files
 
 - `src/index.js` — dotenv parser, schema validator and redacted reporting
-- `bin/env-guard.js` — command-line validation
+- `bin/env-guard.js` — command-line validation and blank template generation
+- `src/example.js` — schema-based, secret-free `.env.example` generator
 - `examples/` — fake sample environment and JSON schema
 - `LICENSE` — MIT
 
