@@ -36,6 +36,27 @@ Programmatic use:
 Package users can import from `@meirr17/env-guard/example`. Keep variable names non-sensitive if publishing even blank templates. Nothing is uploaded.
 
 
+## Generate a schema skeleton from an existing .env
+
+To bootstrap a new validation schema, explicitly choose this mode:
+
+    node bin/env-guard.js --env .env --init-schema env.schema.json
+
+The command **reads the local .env** to discover variable names, but **never writes variable values** to the generated JSON. Each variable starts with a generic \`{"type":"string","required":true}\` rule. There is no inference of numeric types, URLs, regex patterns, defaults or enum values from any existing credentials. Review the schema to configure proper types, optional fields and limits before relying on it.
+
+- The destination is created **only if it does not already exist** (\`wx\`); existing schema files cannot be overwritten.
+- Only the \`--env\` file is read. No environment variables are read from \`process.env\`, and no network requests are made.
+- The output contains **variable names**, which may themselves be sensitive. Inspect the schema before committing or publishing it.
+- This mode is separate from \`--init-example\` and cannot be combined with validation-format flags.
+- A missing or malformed input fails with an error. The resulting stub is intentionally **not** a complete security or configuration policy.
+
+Programmatic use:
+
+    import { scaffoldEnvSchema } from './src/scaffold.js';
+    const schema = scaffoldEnvSchema(dotenvText); // JSON string, names only
+
+Package users can import \`@meirr17/env-guard/scaffold\`.
+
 ## Schema format
 
 The schema must contain `version: 1` and a `variables` mapping. Example:
@@ -84,6 +105,7 @@ This branch contains new functionality and has **not been tested**; validation w
 - `src/index.js` — dotenv parser, schema validator and redacted reporting
 - `bin/env-guard.js` — command-line validation and blank template generation
 - `src/example.js` — schema-based, secret-free `.env.example` generator
+- `src/scaffold.js` — names-only schema skeleton generator from an existing .env file
 - `examples/` — fake sample environment and JSON schema
 - `LICENSE` — MIT
 
