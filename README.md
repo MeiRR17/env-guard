@@ -26,7 +26,7 @@ Use `--summary-only` to generate a report containing **no variable names, values
 
 Text output lists aggregate counts per finding code (VALID, MISSING, INVALID, UNKNOWN, OPTIONAL). JSON output adds structured totals and a count-only advisory. The mode does not change exit codes: invalid data still exits with status **1**, while file and schema errors exit with **2**. Use `--strict` with `--summary-only` to count unexpected variables as errors. `--quiet` cannot be combined with `--summary-only`; the latter already suppresses all individual findings.
 
-Programmatically, `aggregateEnvReport(inspectEnv(envText, schemaText))` is exposed from `@meirr17/env-guard/summary`. Aggregate counts may themselves be sensitive, so apply organizational data-sharing policy before publishing the report.
+Programmatically, `aggregateEnvReport(inspectEnv(envText, schemaText))` is exposed from `@meirr17/env-guard/summary`. Aggregate counts may themselves be sensitive, so apply organizational data-sharing policy before publishing the report. In this mode, startup, file or schema errors are also printed as **generic error codes**, rather than including potentially sensitive variable names and filesystem paths. To investigate the precise cause, run the validator locally without `--summary-only`.
 
 ## Generate a safe .env.example template
 
