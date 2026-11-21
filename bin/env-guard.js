@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { inspectEnv } from '../src/index.js';
+import { generateEnvExample } from '../src/example.js';
 
 const HELP = [
   'env-guard — validate dotenv files without printing secret values',
@@ -13,19 +14,28 @@ const HELP = [
   '  --strict         Treat variables absent from the schema as errors',
   '  --json           Print a structured, redacted JSON report',
   '  --quiet          Print only failures in text mode',
+  '  --init-example FILE  Write a blank .env example from the schema only',
+  '  --required-only      Exclude optional variables from example output',
   '  -h, --help       Print this help',
   '',
   'Exit codes: 0 valid, 1 invalid configuration, 2 usage/file/schema error.',
 ].join('\n');
 
 async function main(args) {
-  const opts = { env: '.env', schema: 'env.schema.json', strict: false, json: false, quiet: false };
+  const opts = { env: '.env', schema: 'env.schema.json', strict: false, json: false, quiet: false, example: null, requiredOnly: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-h' || arg === '--help') { process.stdout.write(HELP + '\n'); return; }
     if (arg === '--strict') { opts.strict = true; continue; }
     if (arg === '--json') { opts.json = true; continue; }
     if (arg === '--quiet') { opts.quiet = true; continue; }
+    if (arg === '--required-only') { opts.requiredOnly = true; continue; }
+    if (arg === '--init-example') {
+      const filename = args[++i];
+      if (!filename || filename.startsWith('--')) throw new Error('Expected a filename after --init-example.');
+      opts.example = filename;
+      continue;
+    }
     if (arg === '--env' || arg === '--schema') {
       const file = args[++i];
       if (!file || file.startsWith('--')) throw new Error('Expected a filename after ' + arg);
@@ -34,6 +44,18 @@ async function main(args) {
     }
     throw new Error('Unknown argument: ' + arg);
   }
+  if (opts.example !== null) {
+    if (opts.json || opts.quiet || opts.strict) {
+      throw new Error('--init-example cannot be combined with --json, --quiet or --strict.');
+    }
+    // Template mode never opens .env or accesses process.env.
+    const schemaText = await readFile(opts.schema, 'utf8');
+    const exampleText = generateEnvExample(schemaText, { requiredOnly: opts.requiredOnly });
+    await writeFile(opts.example, exampleText, { encoding: 'utf8', flag: 'wx' });
+    process.stderr.write('Created blank example template: ' + opts.example + '\n');
+    return;
+  }
+  if (opts.requiredOnly) throw new Error('--required-only requires --init-example FILE.');
   const [environment, schema] = await Promise.all([
     readFile(opts.env, 'utf8'), readFile(opts.schema, 'utf8'),
   ]);
