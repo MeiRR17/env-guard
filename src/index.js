@@ -3,7 +3,7 @@
  * Does not interpolate shell variables. Diagnostic objects never expose values.
  */
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url']);
+const TYPES = new Set(['string','integer','number','boolean','url','port']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -94,6 +94,7 @@ function validateSchema(schema) {
   return keys;
 }
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+const PORT = /^(?:[1-9]\d{0,4})$/;
 
 /** Validate values without printing or storing them in the result. */
 export function validateEnv(parsed, schema, options = {}) {
@@ -121,6 +122,11 @@ export function validateEnv(parsed, schema, options = {}) {
         failures.push('Expected a finite decimal number.');
       if (type === 'boolean' && !/^(?:true|false|yes|no|1|0)$/i.test(value))
         failures.push('Expected boolean.');
+      // Treat ports as a separate, bounded network setting rather than
+      // generic integers: no signs, leading zeros, decimals or port zero.
+      if (type === 'port' && (!PORT.test(value) || Number(value) > 65535)) {
+        failures.push('Expected a TCP/UDP port number from 1 to 65535.');
+      }
       if (type === 'url') {
         try {
           const url = new URL(value);
@@ -128,7 +134,7 @@ export function validateEnv(parsed, schema, options = {}) {
         } catch { failures.push('Expected absolute HTTP(S) URL.'); }
       }
     }
-    if (value && (type === 'integer' || type === 'number') && Number.isFinite(Number(value))) {
+    if (value && (type === 'integer' || type === 'number' || type === 'port') && Number.isFinite(Number(value))) {
       const number = Number(value);
       if (rule.min !== undefined && number < rule.min) failures.push('Below minimum ' + rule.min + '.');
       if (rule.max !== undefined && number > rule.max) failures.push('Above maximum ' + rule.max + '.');
