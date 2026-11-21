@@ -17,6 +17,17 @@ For a project, create a private `.env` and a tracked `env.schema.json` in its ro
 
 Exit codes: **0** configuration valid, **1** variables missing/invalid, **2** usage, parsing, schema or filesystem error. Use the exit code in CI or a startup script.
 
+## Counts-only diagnostics for CI
+
+Use `--summary-only` to generate a report containing **no variable names, values, line numbers, or schema patterns**:
+
+    node bin/env-guard.js --env .env --schema env.schema.json --summary-only
+    node bin/env-guard.js --env .env --schema env.schema.json --summary-only --json
+
+Text output lists aggregate counts per finding code (VALID, MISSING, INVALID, UNKNOWN, OPTIONAL). JSON output adds structured totals and a count-only advisory. The mode does not change exit codes: invalid data still exits with status **1**, while file and schema errors exit with **2**. Use `--strict` with `--summary-only` to count unexpected variables as errors. `--quiet` cannot be combined with `--summary-only`; the latter already suppresses all individual findings.
+
+Programmatically, `aggregateEnvReport(inspectEnv(envText, schemaText))` is exposed from `@meirr17/env-guard/summary`. Aggregate counts may themselves be sensitive, so apply organizational data-sharing policy before publishing the report.
+
 ## Generate a safe .env.example template
 
 Create a **blank, shareable** environment template from your schema without opening an existing `.env` file or copying secret values:
@@ -106,6 +117,7 @@ This branch contains new functionality and has **not been tested**; validation w
 - `bin/env-guard.js` — command-line validation and blank template generation
 - `src/example.js` — schema-based, secret-free `.env.example` generator
 - `src/scaffold.js` — names-only schema skeleton generator from an existing .env file
+- `src/summary.js` — aggregate-only report for CI, omitting variable names and values
 - `examples/` — fake sample environment and JSON schema
 - `LICENSE` — MIT
 
