@@ -2,8 +2,10 @@
  * Zero-dependency dotenv parser and schema validator.
  * Does not interpolate shell variables. Diagnostic objects never expose values.
  */
+import { isIP } from 'node:net';
+
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','ip','ipv4','ipv6']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -126,6 +128,16 @@ export function validateEnv(parsed, schema, options = {}) {
       // generic integers: no signs, leading zeros, decimals or port zero.
       if (type === 'port' && (!PORT.test(value) || Number(value) > 65535)) {
         failures.push('Expected a TCP/UDP port number from 1 to 65535.');
+      }
+      // Node's built-in IP parser performs strict syntax validation locally.
+      // It does not resolve hostnames, open sockets, or normalize the value.
+      if (type === 'ip' || type === 'ipv4' || type === 'ipv6') {
+        const family = isIP(value);
+        if (family === 0 || (type === 'ipv4' && family !== 4) ||
+            (type === 'ipv6' && family !== 6)) {
+          failures.push('Expected a valid ' +
+            (type === 'ip' ? 'IP' : type === 'ipv4' ? 'IPv4' : 'IPv6') + ' address.');
+        }
       }
       if (type === 'url') {
         try {
