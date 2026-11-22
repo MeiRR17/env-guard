@@ -5,7 +5,7 @@
 import { isIP } from 'node:net';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','hex','uuid-v4']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','cidr','hex','uuid-v4']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -103,6 +103,15 @@ const HEX_BYTES = /^(?:[0-9a-fA-F]{2}){1,2048}$/;
 // Canonical, hyphenated RFC 4122 version-4 UUID shape only. The version and
 // variant bits are checked; this cannot prove a value was randomly generated.
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// A network prefix is a separate scalar syntax: address/prefix, never a
+// URL, mask string or hostname. Prefix digits must be shortest decimal form.
+function isCidr(value) {
+  const segments = value.split('/');
+  if (segments.length !== 2 || !/^(?:0|[1-9][0-9]{0,2})$/.test(segments[1])) return false;
+  const family = isIP(segments[0]);
+  const maximum = family === 4 ? 32 : family === 6 ? 128 : -1;
+  return Number(segments[1]) <= maximum;
+}
 
 // ASCII DNS/host labels only: no scheme, port, IP literal, underscore, or
 // leading/trailing hyphen. Single-label private hosts such as `localhost`
@@ -154,6 +163,9 @@ export function validateEnv(parsed, schema, options = {}) {
           failures.push('Expected a valid ' +
             (type === 'ip' ? 'IP' : type === 'ipv4' ? 'IPv4' : 'IPv6') + ' address.');
         }
+      }
+      if (type === 'cidr' && !isCidr(value)) {
+        failures.push('Expected an IPv4 or IPv6 CIDR address/prefix (0–32 or 0–128, respectively).');
       }
       if (type === 'hostname' && !isHostname(value)) {
         failures.push('Expected a hostname with ASCII DNS labels (no scheme, port or trailing dot).');
