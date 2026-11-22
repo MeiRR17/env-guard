@@ -6,7 +6,7 @@ import { isIP } from 'node:net';
 import { Buffer } from 'node:buffer';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','cidr','hex','base64','uuid-v4']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','cidr','hex','base64','base64url','uuid-v4']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -113,6 +113,17 @@ function isCanonicalBase64(value) {
   return bytes.length >= 1 && bytes.length <= 2048 &&
     bytes.toString('base64') === value;
 }
+// URL-safe RFC 4648 Base64 without padding, as used for binary token segments.
+// Allow 1–2,048 decoded octets. URL-safe code points and bounded length alone
+// are not enough: round-trip encoding also rejects unused nonzero trailing bits
+// and Node's otherwise permissive decoder accepting malformed spellings.
+const BASE64URL_BYTES = /^[A-Za-z0-9_-]{2,2731}$/;
+function isCanonicalBase64Url(value) {
+  if (value.length % 4 === 1 || !BASE64URL_BYTES.test(value)) return false;
+  const bytes = Buffer.from(value, 'base64url');
+  return bytes.length >= 1 && bytes.length <= 2048 &&
+    bytes.toString('base64url') === value;
+}
 // Canonical, hyphenated RFC 4122 version-4 UUID shape only. The version and
 // variant bits are checked; this cannot prove a value was randomly generated.
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -188,6 +199,9 @@ export function validateEnv(parsed, schema, options = {}) {
       }
       if (type === 'base64' && !isCanonicalBase64(value)) {
         failures.push('Expected canonical padded RFC 4648 Base64 encoding of 1–2048 bytes.');
+      }
+      if (type === 'base64url' && !isCanonicalBase64Url(value)) {
+        failures.push('Expected canonical unpadded RFC 4648 Base64URL encoding of 1–2048 bytes.');
       }
       if (type === 'uuid-v4' && !UUID_V4.test(value)) {
         failures.push('Expected a canonical hyphenated UUID version 4 (RFC 4122 variant).');
