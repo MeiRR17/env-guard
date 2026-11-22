@@ -5,7 +5,7 @@
 import { isIP } from 'node:net';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','hex']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -97,6 +97,9 @@ function validateSchema(schema) {
 }
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 const PORT = /^(?:[1-9]\d{0,4})$/;
+// Represent complete octets only. No 0x prefix, whitespace or separators.
+// A bounded input avoids treating arbitrarily large values as config keys.
+const HEX_BYTES = /^(?:[0-9a-fA-F]{2}){1,2048}$/;
 
 // ASCII DNS/host labels only: no scheme, port, IP literal, underscore, or
 // leading/trailing hyphen. Single-label private hosts such as `localhost`
@@ -151,6 +154,9 @@ export function validateEnv(parsed, schema, options = {}) {
       }
       if (type === 'hostname' && !isHostname(value)) {
         failures.push('Expected a hostname with ASCII DNS labels (no scheme, port or trailing dot).');
+      }
+      if (type === 'hex' && !HEX_BYTES.test(value)) {
+        failures.push('Expected 1–2048 bytes of hexadecimal (even digits; no 0x prefix or separators).');
       }
       if (type === 'url') {
         try {
