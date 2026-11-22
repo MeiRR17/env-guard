@@ -3,9 +3,10 @@
  * Does not interpolate shell variables. Diagnostic objects never expose values.
  */
 import { isIP } from 'node:net';
+import { Buffer } from 'node:buffer';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','cidr','hex','uuid-v4']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','cidr','hex','base64','uuid-v4']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -100,6 +101,18 @@ const PORT = /^(?:[1-9]\d{0,4})$/;
 // Represent complete octets only. No 0x prefix, whitespace or separators.
 // A bounded input avoids treating arbitrarily large values as config keys.
 const HEX_BYTES = /^(?:[0-9a-fA-F]{2}){1,2048}$/;
+// RFC 4648 standard alphabet, canonical padding and complete quartets.
+// Limit encoded input before decoding: 2,048 octets need <= 2,732 chars.
+// A decode/reencode comparison rejects nonzero unused pad bits and Node's
+// otherwise tolerant acceptance of noncanonical base64.
+const BASE64_BYTES = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+function isCanonicalBase64(value) {
+  if (value.length < 4 || value.length > 2732 ||
+      !BASE64_BYTES.test(value)) return false;
+  const bytes = Buffer.from(value, 'base64');
+  return bytes.length >= 1 && bytes.length <= 2048 &&
+    bytes.toString('base64') === value;
+}
 // Canonical, hyphenated RFC 4122 version-4 UUID shape only. The version and
 // variant bits are checked; this cannot prove a value was randomly generated.
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -172,6 +185,9 @@ export function validateEnv(parsed, schema, options = {}) {
       }
       if (type === 'hex' && !HEX_BYTES.test(value)) {
         failures.push('Expected 1–2048 bytes of hexadecimal (even digits; no 0x prefix or separators).');
+      }
+      if (type === 'base64' && !isCanonicalBase64(value)) {
+        failures.push('Expected canonical padded RFC 4648 Base64 encoding of 1–2048 bytes.');
       }
       if (type === 'uuid-v4' && !UUID_V4.test(value)) {
         failures.push('Expected a canonical hyphenated UUID version 4 (RFC 4122 variant).');
