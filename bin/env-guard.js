@@ -1,9 +1,39 @@
 #!/usr/bin/env node
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import { inspectEnv, EnvGuardError } from '../src/index.js';
 import { generateEnvExample } from '../src/example.js';
 import { scaffoldEnvSchema } from '../src/scaffold.js';
 import { aggregateEnvReport } from '../src/summary.js';
+
+const MAX_FILE_BYTES = 1024 * 1024;
+/**
+ * Bounded fatal-UTF-8 reader for secrets and policy files. Do not buffer
+ * unbounded input or replace malformed secret bytes before validation.
+ * Error messages never include input values or snippets.
+ */
+async function readBoundedUtf8(path, kind) {
+  const stream = createReadStream(path, { highWaterMark: 64 * 1024 });
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let total = 0, value = '';
+  for await (const chunk of stream) {
+    total += chunk.byteLength;
+    if (total > MAX_FILE_BYTES) {
+      throw new EnvGuardError(kind + ' exceeds the 1 MiB file limit.', 'INPUT_SIZE');
+    }
+    try {
+      value += decoder.decode(chunk, { stream: true });
+    } catch {
+      throw new EnvGuardError(kind + ' must be valid UTF-8.', 'INVALID_ENCODING');
+    }
+  }
+  try {
+    value += decoder.decode();
+  } catch {
+    throw new EnvGuardError(kind + ' must be valid UTF-8.', 'INVALID_ENCODING');
+  }
+  return value;
+}
 
 const HELP = [
   'env-guard — validate dotenv files without printing secret values',
@@ -65,7 +95,7 @@ async function main(args) {
     }
     // Explicit scaffold mode reads dotenv values only into private process
     // memory; output contains key names and generic string metadata only.
-    const envText = await readFile(opts.env, 'utf8');
+    const envText = await readBoundedUtf8(opts.env, 'Environment file');
     const schemaText = scaffoldEnvSchema(envText);
     await writeFile(opts.scaffold, schemaText, { encoding: 'utf8', flag: 'wx' });
     process.stderr.write('Created schema skeleton (variable names only): ' + opts.scaffold + '\n');
@@ -76,7 +106,7 @@ async function main(args) {
       throw new Error('--init-example cannot be combined with --json, --quiet or --strict.');
     }
     // Template mode never opens .env or accesses process.env.
-    const schemaText = await readFile(opts.schema, 'utf8');
+    const schemaText = await readBoundedUtf8(opts.schema, 'Schema file');
     const exampleText = generateEnvExample(schemaText, { requiredOnly: opts.requiredOnly });
     await writeFile(opts.example, exampleText, { encoding: 'utf8', flag: 'wx' });
     process.stderr.write('Created blank example template: ' + opts.example + '\n');
@@ -84,7 +114,8 @@ async function main(args) {
   }
   if (opts.requiredOnly) throw new Error('--required-only requires --init-example FILE.');
   const [environment, schema] = await Promise.all([
-    readFile(opts.env, 'utf8'), readFile(opts.schema, 'utf8'),
+    readBoundedUtf8(opts.env, 'Environment file'),
+    readBoundedUtf8(opts.schema, 'Schema file'),
   ]);
   const report = inspectEnv(environment, schema, { strictUnknown: opts.strict });
   if (opts.summaryOnly) {

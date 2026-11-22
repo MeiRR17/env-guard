@@ -17,6 +17,10 @@ For a project, create a private `.env` and a tracked `env.schema.json` in its ro
 
 Exit codes: **0** configuration valid, **1** variables missing/invalid, **2** usage, parsing, schema or filesystem error. Use the exit code in CI or a startup script.
 
+## Bounded input and strict text decoding
+
+Every CLI mode reads `.env` and/or schema JSON via a bounded **1 MiB byte stream** with fatal UTF-8 decoding. Oversized files and malformed bytes are rejected *before* they can become misleading configuration values or regex rules. No secret contents or schema snippets appear in these errors; `--summary-only` keeps its fixed error-code reporting. These are local-only reads, not network operations.
+
 ## Counts-only diagnostics for CI
 
 Use `--summary-only` to generate a report containing **no variable names, values, line numbers, or schema patterns**:
