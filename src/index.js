@@ -5,7 +5,7 @@
 import { isIP } from 'node:net';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port','ip','ipv4','ipv6']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -98,6 +98,16 @@ function validateSchema(schema) {
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 const PORT = /^(?:[1-9]\d{0,4})$/;
 
+// ASCII DNS/host labels only: no scheme, port, IP literal, underscore, or
+// leading/trailing hyphen. Single-label private hosts such as `localhost`
+// are accepted; punycode A-labels work without DNS or IDNA lookups.
+function isHostname(value) {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 253) return false;
+  const labels = value.split('.');
+  return labels.every(label => label.length >= 1 && label.length <= 63 &&
+    /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label));
+}
+
 /** Validate values without printing or storing them in the result. */
 export function validateEnv(parsed, schema, options = {}) {
   if (!(parsed instanceof Map)) throw new TypeError('Expected parseEnv() output.');
@@ -138,6 +148,9 @@ export function validateEnv(parsed, schema, options = {}) {
           failures.push('Expected a valid ' +
             (type === 'ip' ? 'IP' : type === 'ipv4' ? 'IPv4' : 'IPv6') + ' address.');
         }
+      }
+      if (type === 'hostname' && !isHostname(value)) {
+        failures.push('Expected a hostname with ASCII DNS labels (no scheme, port or trailing dot).');
       }
       if (type === 'url') {
         try {

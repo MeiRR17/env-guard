@@ -77,6 +77,7 @@ The schema must contain `version: 1` and a `variables` mapping. Example:
       "variables": {
         "PORT": { "type": "port" },
         "BIND_ADDRESS": { "type": "ipv4" },
+        "SERVICE_HOST": { "type": "hostname" },
         "API_BASE_URL": { "type": "url" },
         "NODE_ENV": { "type": "string", "enum": ["development", "test", "production"] },
         "ENABLE_CACHE": { "type": "boolean", "required": false },
@@ -84,7 +85,7 @@ The schema must contain `version: 1` and a `variables` mapping. Example:
       }
     }
 
-Supported types: `string`, `integer`, `number`, `boolean`, `url` (absolute HTTP/HTTPS), `port` (a decimal TCP/UDP port from 1 to 65535 without a sign or leading zeros), `ip` (IPv4 or IPv6), `ipv4` (IPv4 only), and `ipv6` (IPv6 only). IP types require literal addresses, not hostnames or CIDR ranges. IPv6 compression is supported by Node.js's built-in IP parser; no DNS lookups or network connections are performed. Rules: `required` (default true), `allowEmpty` (default false), `min`, `max`, `minLength`, `maxLength`, `enum` (exact string matches) and `pattern` (JavaScript RegExp source). A variable not defined in the schema is a warning by default and an error with `--strict`. The `port` type is for explicitly configured service ports; dynamic assignment via port 0 is deliberately rejected. Existing `min`/`max` constraints can also restrict the accepted port range.
+Supported types: `string`, `integer`, `number`, `boolean`, `url` (absolute HTTP/HTTPS), `port` (a decimal TCP/UDP port from 1 to 65535 without a sign or leading zeros), `hostname` (ASCII DNS labels or a single-label local host; max 253 characters and 63 characters per label), `ip` (IPv4 or IPv6), `ipv4` (IPv4 only), and `ipv6` (IPv6 only). The `hostname` rule accepts names such as `localhost`, `dev-api` and `internal.example`, including ASCII punycode labels; it rejects URL schemes, ports, empty labels, underscores, terminal dots and leading/trailing hyphens. It checks syntax only and performs no DNS lookup. IP types require literal addresses, not hostnames or CIDR ranges. IPv6 compression is supported by Node.js's built-in IP parser; no DNS lookups or network connections are performed. Rules: `required` (default true), `allowEmpty` (default false), `min`, `max`, `minLength`, `maxLength`, `enum` (exact string matches) and `pattern` (JavaScript RegExp source). A variable not defined in the schema is a warning by default and an error with `--strict`. The `port` type is for explicitly configured service ports; dynamic assignment via port 0 is deliberately rejected. Existing `min`/`max` constraints can also restrict the accepted port range.
 
 ## Parsing behavior
 
