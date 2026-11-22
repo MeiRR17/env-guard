@@ -5,7 +5,7 @@
 import { isIP } from 'node:net';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','hex']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','hex','uuid-v4']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -100,6 +100,9 @@ const PORT = /^(?:[1-9]\d{0,4})$/;
 // Represent complete octets only. No 0x prefix, whitespace or separators.
 // A bounded input avoids treating arbitrarily large values as config keys.
 const HEX_BYTES = /^(?:[0-9a-fA-F]{2}){1,2048}$/;
+// Canonical, hyphenated RFC 4122 version-4 UUID shape only. The version and
+// variant bits are checked; this cannot prove a value was randomly generated.
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // ASCII DNS/host labels only: no scheme, port, IP literal, underscore, or
 // leading/trailing hyphen. Single-label private hosts such as `localhost`
@@ -157,6 +160,9 @@ export function validateEnv(parsed, schema, options = {}) {
       }
       if (type === 'hex' && !HEX_BYTES.test(value)) {
         failures.push('Expected 1–2048 bytes of hexadecimal (even digits; no 0x prefix or separators).');
+      }
+      if (type === 'uuid-v4' && !UUID_V4.test(value)) {
+        failures.push('Expected a canonical hyphenated UUID version 4 (RFC 4122 variant).');
       }
       if (type === 'url') {
         try {
