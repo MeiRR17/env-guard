@@ -1,0 +1,26 @@
+{
+  "name": "@meirr17/env-guard",
+  "version": "0.1.0",
+  "description": "Validate dotenv files against a typed JSON schema without leaking values",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./example": "./src/example.js",
+    "./scaffold": "./src/scaffold.js",
+    "./summary": "./src/summary.js"
+  },
+  "bin": {
+    "env-guard": "./bin/env-guard.js"
+  },
+  "license": "MIT",
+  "files": [
+    "src/",
+    "bin/",
+    "README.md",
+    "LICENSE",
+    "examples/"
+  ]
+}
