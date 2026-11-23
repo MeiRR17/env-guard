@@ -6,7 +6,7 @@ import { isIP } from 'node:net';
 import { Buffer } from 'node:buffer';
 
 const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','cidr','hex','base64','base64url','uuid-v4']);
+const TYPES = new Set(['string','integer','number','boolean','url','port','hostname','ip','ipv4','ipv6','cidr','hex','base64','base64url','uuid-v4','date-iso']);
 const MAX_TEXT = 1024 * 1024;
 
 export class EnvGuardError extends Error {
@@ -137,6 +137,20 @@ function isCidr(value) {
   return Number(segments[1]) <= maximum;
 }
 
+// Strict Gregorian YYYY-MM-DD calendar date (not a timestamp). Date.parse
+// normalizes some impossible dates, so check month/day explicitly.
+function isIsoCalendarDate(value) {
+  const match = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1];
+}
+
 // ASCII DNS/host labels only: no scheme, port, IP literal, underscore, or
 // leading/trailing hyphen. Single-label private hosts such as `localhost`
 // are accepted; punycode A-labels work without DNS or IDNA lookups.
@@ -205,6 +219,9 @@ export function validateEnv(parsed, schema, options = {}) {
       }
       if (type === 'uuid-v4' && !UUID_V4.test(value)) {
         failures.push('Expected a canonical hyphenated UUID version 4 (RFC 4122 variant).');
+      }
+      if (type === 'date-iso' && !isIsoCalendarDate(value)) {
+        failures.push('Expected a valid Gregorian calendar date in YYYY-MM-DD format.');
       }
       if (type === 'url') {
         try {
